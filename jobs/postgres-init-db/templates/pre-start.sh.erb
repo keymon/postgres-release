@@ -1,0 +1,54 @@
+#!/bin/bash -eu
+
+PSQL_ADDRESS="<%= p("psql_address") %>"
+
+current_version="9.6.10"
+pgversion_current="postgres-${current_version}"
+
+JOB_DIR=/var/vcap/jobs/postgres
+PACKAGE_DIR="/var/vcap/packages/${pgversion_current}"
+
+function pgexec() {
+  local database
+  database="${1}"
+
+  local command
+  command="${2}"
+
+  "${PACKAGE_DIR}/bin/psql" \
+    "${PSQL_ADDRESS}" \
+    -c "${command}"
+}
+
+function create_roles() {
+  echo "Creating roles..."
+  "${PACKAGE_DIR}/bin/psql" \
+      ${PSQL_ADDRESS} \
+        -c "\set ON_ERROR_STOP on" -f "${JOB_DIR}/config/roles.sql"
+}
+
+function create_databases() {
+  echo "Creating databases..."
+  <% p("databases", []).each do |database| %>
+    echo "Creating database <%= database["name"] %>..."
+    "${PACKAGE_DIR}/bin/psql" \
+      "${PSQL_ADDRESS}" \
+	  -tc "SELECT 1 FROM pg_database WHERE datname = '<%= database["name"] %>'" \
+      | grep -q 1 || \
+      "${PACKAGE_DIR}/bin/psql" \
+	"${PSQL_ADDRESS}" \
+	-c "CREATE DATABASE \"<%= database["name"] %>\"<%= database['owner'] ? " OWNER #{database['owner']}" : "" %>"
+
+    <% if database["citext"] %>
+      echo "Trying to install citext..."
+      pgexec "<%= database["name"] %>" "CREATE EXTENSION IF NOT EXISTS citext"
+    <% end %>
+
+    echo "Enabling pgcrypto extension..."
+    pgexec "<%= database["name"] %>" "CREATE EXTENSION IF NOT EXISTS pgcrypto"
+
+  <% end %>
+}
+
+create_roles
+create_databases

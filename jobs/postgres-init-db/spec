@@ -1,0 +1,34 @@
+---
+name: postgres-init-db
+
+description: "The Postgres server provides a single instance Postgres database that can be used with the Cloud Controller or the UAA. It does not provide highly-available configuration."
+
+templates:
+  pre-start.sh.erb: bin/pre-start
+  roles.sql.erb: config/roles.sql
+
+packages:
+  - postgres-common
+  - postgres-9.6.10
+
+properties:
+  psql_address:
+    description: postgresql URL of the DB to connect
+    example: postgresql://dbadmin:pass123@db.example.com:5432/postgres
+  databases:
+    description: "A list of databases and associated properties to create"
+    example: |
+      - name: sandbox
+        citext: true
+      - name: sandbox2
+        citext: false
+  roles:
+    description: "A list of database roles and associated properties to create"
+    example: |
+      - name: pgadmin
+        password: passwd
+        permissions:
+        - "CONNECTION LIMIT 33"
+      - name: bud_spencer
+        common_name: "Carlo Pedersoli"
+
